@@ -4,25 +4,53 @@ Guía completa para publicar la extensión en VS Code Marketplace y Cursor.
 
 ## 📋 Pre-requisitos
 
-1. **Crear cuenta en Visual Studio Marketplace**
-   - Visita: https://marketplace.visualstudio.com
-   - Sign in con tu Microsoft account (o crea una)
-   - Click en "Publish extensions"
+### 1. Crear Publisher ID en Azure DevOps
 
-2. **Generar Personal Access Token (PAT)**
-   - Ve a: https://dev.azure.com/
-   - Accede con tu cuenta de Microsoft
-   - Ve a User Settings → Personal access tokens
-   - Click "New Token"
-   - Nombre: `vsce` (o similar)
-   - Scopes: **Marketplace > Manage**
-   - Click "Create"
-   - **Guarda el token** (lo necesitarás después)
+⚠️ **IMPORTANTE**: No vayas a marketplace.visualstudio.com primero. Necesitas crear el Publisher ID en Azure DevOps.
 
-3. **Instalar VSCE (VS Code Extension CLI)**
-   ```bash
-   npm install -g @vscode/vsce
-   ```
+```bash
+# 1. Ve a: https://dev.azure.com
+# 2. Sign in con tu Microsoft account (crea una si no tienes)
+# 3. Click en tu perfil (arriba a la derecha)
+# 4. Click "Manage publishers"
+# 5. Click "Create publisher"
+# 6. Llena el formulario:
+#    - Publisher ID: josedugu (sin espacios)
+#    - Publisher Name: Jose Gutierrez
+#    - Dominio: OPCIONAL (puedes dejarlo vacío)
+# 7. Click "Create"
+```
+
+### 2. Generar Personal Access Token (PAT)
+
+```bash
+# En Azure DevOps:
+# 1. User Settings (ícono engranaje, arriba a la derecha)
+# 2. Personal access tokens
+# 3. New Token
+# 4. Configura:
+#    - Name: vsce
+#    - Organization: All accessible organizations
+#    - Expiration: 1 year
+#    - Scopes: Marketplace > Manage
+# 5. Click "Create"
+# 6. Copia el token (aparece una sola vez)
+```
+
+### 3. Instalar VSCE (VS Code Extension CLI)
+
+```bash
+npm install -g @vscode/vsce
+```
+
+### 4. Verificar Publisher ID en package.json
+
+```json
+{
+  "publisher": "josedugu",  // Debe coincidir con tu Publisher ID
+  ...
+}
+```
 
 ## 🚀 Publicar en VS Code Marketplace
 
@@ -200,19 +228,39 @@ Sigue Semantic Versioning:
 
 ### "The publisher field in package.json is not a valid publisher ID"
 
-**Solución**: El publisher debe ser alfanumérico y sin espacios
+**Causa**: No creaste el Publisher ID en Azure DevOps o no coincide con package.json
+
+**Solución**:
+1. Ve a https://dev.azure.com → Manage publishers
+2. Crea un Publisher ID (ej: josedugu)
+3. Actualiza package.json con el mismo nombre
 ```json
-"publisher": "jgutierrez"  // ✅ Correcto
-"publisher": "j gutierrez" // ❌ Incorrecto
+"publisher": "josedugu"  // ✅ Debe coincidir exactamente con tu Publisher ID
 ```
+
+### "Me pide un dominio al registrar"
+
+**Causa**: Estás intentando registrarse directamente en Marketplace sin crear Publisher ID primero
+
+**Solución**: Crea el Publisher ID en Azure DevOps PRIMERO (https://dev.azure.com → Manage publishers). El dominio es OPCIONAL, déjalo vacío.
 
 ### "403 Forbidden" al publicar
 
-**Solución**: El PAT no tiene permisos. Crea uno nuevo con scope "Marketplace > Manage"
+**Causa**: El PAT no tiene los permisos correctos
+
+**Solución**: Crea uno nuevo con:
+- Scope: **Marketplace > Manage** (no solo "Marketplace")
+- Organization: All accessible organizations
+
+### "Personal access token has expired"
+
+**Causa**: El token expira después del tiempo configurado
+
+**Solución**: Crea un token nuevo con expiración de 1 año
 
 ### Extension tarda mucho en aparecer
 
-Marketplace cachea. Espera 10-15 minutos.
+Marketplace cachea. Espera 10-15 minutos después de publicar.
 
 ## 📞 Soporte
 
