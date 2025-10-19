@@ -61,7 +61,7 @@ A powerful visual database explorer for PostgreSQL that runs directly inside Cur
 ## Requirements
 
 - **Node.js**: Version 18 or higher (npm comes with Node.js)
-- **VS Code/Cursor**: Version 1.85.0 or higher
+- **VS Code/Cursor**: Version 1.105.0 or higher
 - **PostgreSQL Database**: Local or remote (versions 10+)
 - **Network Access**: Connection to PostgreSQL server with appropriate permissions
 

@@ -5,8 +5,12 @@
   "version": "0.1.0",
   "publisher": "josedugu",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/josedugu/easy-db"
+  },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.105.0"
   },
   "categories": [
     "Other"
@@ -63,7 +67,7 @@
     "package": "vsce package",
     "webview:dev": "vite",
     "webview:build": "vite build",
-    "build:all": "bun run compile && bun run webview:build"
+    "build:all": "npm run compile && npm run webview:build"
   },
   "dependencies": {
     "pg": "^8.11.3",
