@@ -60,19 +60,29 @@ A powerful visual database explorer for PostgreSQL that runs directly inside Cur
 
 ## Requirements
 
+- **Node.js**: Version 18 or higher (npm comes with Node.js)
 - **VS Code/Cursor**: Version 1.85.0 or higher
 - **PostgreSQL Database**: Local or remote (versions 10+)
 - **Network Access**: Connection to PostgreSQL server with appropriate permissions
+
+### For Development
+
+- **npm**: Included with Node.js (required for development scripts)
 
 ## Installation
 
 ### Option 1: Local Development
 
 1. Clone or download this extension
+   ```bash
+   git clone https://github.com/josedugu/easy-db.git
+   cd easy-db
+   ```
+
 2. Install dependencies:
 
    ```bash
-   bun install
+   npm install
    ```
 
 3. Configure your database credentials (see Configuration section)
@@ -86,20 +96,21 @@ A powerful visual database explorer for PostgreSQL that runs directly inside Cur
 1. Build the extension:
 
    ```bash
-   bun run compile
+   npm run compile
+   npm run webview:build
    ```
 
 2. Package the extension:
 
    ```bash
-   bun run package
+   npm run package
    ```
 
 3. Install the `.vsix` file:
    - Open VS Code/Cursor
    - Go to Extensions
    - Click "..." → "Install from VSIX"
-   - Select the generated `.vsix` file
+   - Select the generated `.vsix` file (e.g., `easydb-0.1.0.vsix`)
 
 ## Configuration
 
