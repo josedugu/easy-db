@@ -1,0 +1,85 @@
+{
+  "name": "easydb",
+  "displayName": "EasyDB - PostgreSQL Viewer",
+  "description": "Visual database explorer for PostgreSQL with interactive credentials and table management",
+  "version": "0.1.0",
+  "publisher": "jegs",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:postgresql.openDashboard",
+    "onCommand:postgresql.configureConnection",
+    "onCommand:postgresql.clearCredentials",
+    "onCommand:postgresql.showLogs"
+  ],
+  "main": "./out/extension.js",
+  "type": "commonjs",
+  "contributes": {
+    "commands": [
+      {
+        "command": "postgresql.openDashboard",
+        "title": "PostgreSQL: Open Explorer"
+      },
+      {
+        "command": "postgresql.configureConnection",
+        "title": "PostgreSQL: Configure Database Connection",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "postgresql.clearCredentials",
+        "title": "PostgreSQL: Clear Saved Credentials",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "postgresql.refreshData",
+        "title": "PostgreSQL: Refresh Data",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "postgresql.showLogs",
+        "title": "PostgreSQL: Show Logs",
+        "icon": "$(output)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "postgresql.openDashboard",
+          "when": "true",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "webview:dev": "vite",
+    "webview:build": "vite build",
+    "build:all": "bun run compile && bun run webview:build"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.11.6",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@types/vscode": "^1.105.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "@vscode/vsce": "^3.6.2",
+    "vite": "^7.1.10"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,30 @@
+node_modules
+out
+.env
+.env.local
+*.vsix
+.vscode-test
+.DS_Store
+svar-datagrid.txt
+bun.lock
+package-lock.json
+
+# Development files
+CREDENTIALS_GUIDE.md
+DEVELOPMENT_GUIDE.md
+INSTALLATION.md
+NEXT_STEPS.md
+PROJECT_SUMMARY.md
+QUICK_START.md
+QUICK_START_REACT.md
+TESTING_GUIDE.md
+USAGE.md
+launch-extension.sh
+vite.config.ts
+
+# Browser development storage
+src/webview/credentials.json
+
+# IDE
+.vscode/**
+!.vscode/extensions.json
