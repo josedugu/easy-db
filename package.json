@@ -3,7 +3,7 @@
   "displayName": "EasyDB - PostgreSQL Viewer",
   "description": "Visual database explorer for PostgreSQL with interactive credentials and table management",
   "version": "0.1.0",
-  "publisher": "jegs",
+  "publisher": "josedugu",
   "private": true,
   "engines": {
     "vscode": "^1.85.0"
