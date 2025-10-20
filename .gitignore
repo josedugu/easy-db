@@ -21,6 +21,7 @@ TESTING_GUIDE.md
 USAGE.md
 launch-extension.sh
 vite.config.ts
+token_publisher.txt
 
 # Browser development storage
 src/webview/credentials.json

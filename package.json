@@ -2,7 +2,7 @@
   "name": "easydb",
   "displayName": "EasyDB - PostgreSQL Viewer",
   "description": "Visual database explorer for PostgreSQL with interactive credentials and table management",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "josedugu",
   "private": true,
   "repository": {
@@ -10,7 +10,7 @@
     "url": "https://github.com/josedugu/easy-db"
   },
   "engines": {
-    "vscode": "^1.105.0"
+    "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
@@ -78,7 +78,7 @@
     "@types/pg": "^8.11.6",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
-    "@types/vscode": "^1.105.0",
+    "@types/vscode": "^1.85.0",
     "@vitejs/plugin-react": "^5.0.4",
     "@vscode/vsce": "^3.6.2",
     "vite": "^7.1.10"
