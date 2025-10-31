@@ -38,6 +38,10 @@ import {
   SavedQuery,
 } from "../database/savedQueries";
 import { logError, logInfo } from "../utils/logger";
+import { ConnectionService } from "../services/ConnectionService";
+import { SchemaService } from "../services/SchemaService";
+import { TableService } from "../services/TableService";
+import { QueryService } from "../services/QueryService";
 
 const DEFAULT_CONFIG: DatabaseConfig = {
   hostname: "localhost",
@@ -68,6 +72,12 @@ export class DashboardPanel {
 
   private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
+  
+  // Servicios
+  private readonly connectionService: ConnectionService;
+  private readonly schemaService: SchemaService;
+  private readonly tableService: TableService;
+  private readonly queryService: QueryService;
   private currentConfig: DatabaseConfig | null = null;
   private remember = false;
   private isConnected = false;
@@ -79,6 +89,12 @@ export class DashboardPanel {
     private readonly context: vscode.ExtensionContext
   ) {
     this.panel = panel;
+    
+    // Inicializar servicios
+    this.connectionService = new ConnectionService(context);
+    this.schemaService = new SchemaService();
+    this.tableService = new TableService();
+    this.queryService = new QueryService(context);
     this.panel.iconPath = {
       light: vscode.Uri.joinPath(
         context.extensionUri,
@@ -384,7 +400,8 @@ export class DashboardPanel {
     remember: boolean,
     activeConnectionId?: string
   ) {
-    const validationError = this.validateConfig(config);
+    // Validar configuración usando el servicio
+    const validationError = this.connectionService.validateConfig(config);
     if (validationError) {
       this.lastError = validationError;
       this.postMessage("connectionError", {
@@ -439,23 +456,17 @@ export class DashboardPanel {
             // Race between the actual connection and cancellation
             await Promise.race([
               (async () => {
-                await resetConnection();
-
-                // Check if cancelled before connecting
                 if (token.isCancellationRequested) {
                   throw new Error("Connection cancelled");
                 }
 
-                initializeConnection(config);
+                // USAR EL SERVICIO
+                await this.connectionService.connect(
+                  config,
+                  remember,
+                  activeConnectionId
+                );
 
-                // Check if cancelled before testing
-                if (token.isCancellationRequested) {
-                  throw new Error("Connection cancelled");
-                }
-
-                await testConnection();
-
-                // Check if cancelled after testing
                 if (token.isCancellationRequested) {
                   throw new Error("Connection cancelled");
                 }
@@ -478,15 +489,6 @@ export class DashboardPanel {
       this.currentConfig = config;
       this.lastError = undefined;
       this.remember = remember;
-
-      await this.persistCredentials(remember);
-
-      // Update lastUsed for the active connection if provided
-      if (activeConnectionId) {
-        await updateLastUsed(this.context, activeConnectionId);
-      }
-
-      logInfo("Connected to PostgreSQL successfully.");
 
       this.postMessage("connectionSuccess", {
         config,
@@ -527,15 +529,14 @@ export class DashboardPanel {
   }
 
   private async handleDisconnect(): Promise<void> {
-    // If there's an ongoing connection attempt, cancel it
     if (this.connectionCancellation) {
       this.connectionCancellation.cancel();
       this.connectionCancellation.dispose();
       this.connectionCancellation = undefined;
     }
 
-    // Always reset the connection pool to stop any pending queries
-    await resetConnection();
+    // USAR EL SERVICIO
+    await this.connectionService.disconnect();
 
     this.isConnected = false;
     this.postMessage("disconnected", null);
@@ -564,13 +565,13 @@ export class DashboardPanel {
     }
 
     try {
-      const { getConnection } = await import("../database/connection");
-      const db = getConnection();
-
-      // Construct UPDATE query using primary key
-      const query = `UPDATE "${schema}"."${table}" SET "${columnName}" = $1 WHERE "${primaryKey.column}" = $2`;
-
-      await db.query(query, [newValue, primaryKey.value]);
+      await this.tableService.updateCell(
+        schema,
+        table,
+        columnName,
+        newValue,
+        primaryKey
+      );
 
       this.postMessage("cellUpdated", {
         schema,
@@ -601,7 +602,10 @@ export class DashboardPanel {
 
   private async handleSaveConnection(name: string, config: DatabaseConfig) {
     try {
-      const connection = await saveConnection(this.context, name, config);
+      const connection = await this.connectionService.saveConnection(
+        name,
+        config
+      );
       this.postMessage("connectionSaved", { connection });
     } catch (error) {
       logError("Failed to save connection", error);
@@ -615,11 +619,13 @@ export class DashboardPanel {
     config: DatabaseConfig
   ) {
     try {
-      await updateConnection(this.context, connectionId, name, config);
-      logInfo(`Connection "${name}" updated successfully.`);
+      await this.connectionService.updateConnection(
+        connectionId,
+        name,
+        config
+      );
 
-      // Reload all connections and send to webview
-      const connections = await getAllConnections(this.context);
+      const connections = await this.connectionService.getAllConnections();
       const updatedConnection = connections.find((c) => c.id === connectionId);
 
       this.postMessage("connectionUpdated", {
@@ -634,30 +640,7 @@ export class DashboardPanel {
 
   private async handleDeleteConnection(connectionId: string) {
     try {
-      // Get the connection name for the confirmation dialog
-      const connections = await getAllConnections(this.context);
-      const connection = connections.find((c) => c.id === connectionId);
-
-      if (!connection) {
-        vscode.window.showErrorMessage("Connection not found");
-        return;
-      }
-
-      // Show confirmation dialog
-      const answer = await vscode.window.showWarningMessage(
-        `Are you sure you want to delete the connection "${connection.name}"?`,
-        { modal: true },
-        "Delete",
-        "Cancel"
-      );
-
-      if (answer !== "Delete") {
-        return;
-      }
-
-      logInfo(`Attempting to delete connection with ID: ${connectionId}`);
-      await deleteConnection(this.context, connectionId);
-      logInfo(`Connection deleted successfully.`);
+      await this.connectionService.deleteConnection(connectionId);
       this.postMessage("connectionDeleted", { connectionId });
     } catch (error) {
       logError("Failed to delete connection", error);
@@ -691,8 +674,7 @@ export class DashboardPanel {
     }
 
     try {
-      const schemas = await getSchemas();
-      logInfo(`Loaded ${schemas.length} schemas from PostgreSQL.`);
+      const schemas = await this.schemaService.getSchemas();
       this.postMessage("schemas", { schemas });
     } catch (error: any) {
       logError("Failed to load schemas.", error);
@@ -704,20 +686,11 @@ export class DashboardPanel {
 
   private async sendTables(schema: string, connectionId?: string) {
     if (!this.isConnected || !schema) {
-      logInfo(
-        `Skipped loading tables for schema ${schema}: connected=${this.isConnected}`
-      );
       return;
     }
 
     try {
-      logInfo(
-        `Loading tables for schema ${schema} (connectionId=${
-          connectionId ?? "unknown"
-        })`
-      );
-      const tables = await getTables(schema);
-      logInfo(`Loaded ${tables.length} tables from schema ${schema}.`);
+      const tables = await this.schemaService.getTables(schema);
       this.postMessage("tables", { schema, tables, connectionId });
     } catch (error: any) {
       logError(`Failed to load tables for schema ${schema}`, error);
@@ -729,20 +702,11 @@ export class DashboardPanel {
 
   private async sendViews(schema: string, connectionId?: string) {
     if (!this.isConnected || !schema) {
-      logInfo(
-        `Skipped loading views for schema ${schema}: connected=${this.isConnected}`
-      );
       return;
     }
 
     try {
-      logInfo(
-        `Loading views for schema ${schema} (connectionId=${
-          connectionId ?? "unknown"
-        })`
-      );
-      const views = await getViews(schema);
-      logInfo(`Loaded ${views.length} views from schema ${schema}.`);
+      const views = await this.schemaService.getViews(schema);
       this.postMessage("views", { schema, views, connectionId });
     } catch (error: any) {
       logError(`Failed to load views for schema ${schema}`, error);
@@ -754,22 +718,11 @@ export class DashboardPanel {
 
   private async sendMaterializedViews(schema: string, connectionId?: string) {
     if (!this.isConnected || !schema) {
-      logInfo(
-        `Skipped loading materialized views for schema ${schema}: connected=${this.isConnected}`
-      );
       return;
     }
 
     try {
-      logInfo(
-        `Loading materialized views for schema ${schema} (connectionId=${
-          connectionId ?? "unknown"
-        })`
-      );
-      const views = await getMaterializedViews(schema);
-      logInfo(
-        `Loaded ${views.length} materialized views from schema ${schema}.`
-      );
+      const views = await this.schemaService.getMaterializedViews(schema);
       this.postMessage("materializedViews", {
         schema,
         views,
@@ -810,20 +763,11 @@ export class DashboardPanel {
 
   private async sendSequences(schema: string, connectionId?: string) {
     if (!this.isConnected || !schema) {
-      logInfo(
-        `Skipped loading sequences for schema ${schema}: connected=${this.isConnected}`
-      );
       return;
     }
 
     try {
-      logInfo(
-        `Loading sequences for schema ${schema} (connectionId=${
-          connectionId ?? "unknown"
-        })`
-      );
-      const sequences = await getSequences(schema);
-      logInfo(`Loaded ${sequences.length} sequences from schema ${schema}.`);
+      const sequences = await this.schemaService.getSequences(schema);
       this.postMessage("sequences", { schema, sequences, connectionId });
     } catch (error: any) {
       logError(`Failed to load sequences for schema ${schema}`, error);
@@ -853,60 +797,22 @@ export class DashboardPanel {
     }
 
     try {
-      const searchFilter = payload.searchFilter || "";
-      const offset = page * pageSize;
       const sorting = payload.sorting || [];
-
-      let data: any[];
-      let totalCount: number;
-      const columns = await getTableColumns(table, schema);
-
-      // If there's a search filter, use raw query
-      if (searchFilter) {
-        const whereClause = searchFilter;
-        let query = `SELECT * FROM "${schema}"."${table}" WHERE ${whereClause}`;
-
-        // Add ORDER BY if sorting exists
-        if (sorting.length > 0) {
-          const orderClauses = sorting.map(
-            (sort) => `"${sort.column}" ${sort.direction}`
-          );
-          query += ` ORDER BY ${orderClauses.join(", ")}`;
-        }
-
-        query += ` LIMIT ${pageSize} OFFSET ${offset}`;
-
-        // Execute the query
-        const { getConnection } = await import("../database/connection");
-        const db = getConnection();
-        const result = await db.query(query);
-        data = result.rows;
-
-        // Get count with the same filter
-        const countQuery = `SELECT COUNT(*) as count FROM "${schema}"."${table}" WHERE ${whereClause}`;
-        const countResult = await db.query<{ count: string }>(countQuery);
-        totalCount = Number(countResult.rows[0]?.count || 0);
-      } else {
-        // No search filter, use normal getAllData
-        totalCount = await getTableRowCount(table, schema);
-
-        data = await getAllData(
-          table,
-          schema,
-          {
-            limit: pageSize,
-            offset,
-          },
-          sorting
-        );
-      }
+      const result = await this.tableService.getTableData(
+        table,
+        schema,
+        page,
+        pageSize,
+        sorting,
+        payload.searchFilter
+      );
 
       this.postMessage("tableData", {
         schema,
         table,
-        columns,
-        rows: data,
-        totalCount,
+        columns: result.columns,
+        rows: result.rows,
+        totalCount: result.totalCount,
         page,
         pageSize,
       });
@@ -2692,26 +2598,18 @@ export class DashboardPanel {
       return;
     }
 
-    const startTime = Date.now();
     try {
-      logInfo(`[BP] Executing query: ${sql.substring(0, 50)}...`);
-      const result = await executeCustomQuery(sql);
-      const executionTime = Date.now() - startTime;
-
-      logInfo(
-        `[BP] Query executed: ${result.rowCount} rows in ${executionTime}ms`
-      );
+      const result = await this.queryService.executeQuery(sql);
 
       this.postMessage("queryResult", {
         rows: result.rows,
         rowCount: result.rowCount,
-        executionTime,
+        executionTime: result.executionTime,
         command: result.command,
       });
     } catch (error: any) {
       logError("Query execution failed", error);
 
-      // Extract detailed error message from PostgreSQL
       const errorMessage = error?.message || "Query execution failed";
       const errorDetail = error?.detail || "";
       const errorHint = error?.hint || "";
@@ -2728,7 +2626,7 @@ export class DashboardPanel {
 
   private async handleLoadQueries() {
     try {
-      const queries = await getAllQueries(this.context);
+      const queries = await this.queryService.getAllQueries();
       this.postMessage("queriesLoaded", { queries });
     } catch (error) {
       logError("Failed to load queries", error);
@@ -2737,9 +2635,8 @@ export class DashboardPanel {
 
   private async handleSaveQuery(query: SavedQuery) {
     try {
-      const savedQuery = await saveQueryToStorage(this.context, query);
+      const savedQuery = await this.queryService.saveQuery(query);
       this.postMessage("querySaved", { query: savedQuery });
-      logInfo(`Query "${query.name}" saved successfully.`);
     } catch (error) {
       logError("Failed to save query", error);
     }
@@ -2747,9 +2644,8 @@ export class DashboardPanel {
 
   private async handleUpdateQuery(query: SavedQuery) {
     try {
-      await updateQueryInStorage(this.context, query);
+      await this.queryService.updateQuery(query);
       this.postMessage("queryUpdated", { query });
-      logInfo(`Query "${query.name}" updated successfully.`);
     } catch (error) {
       logError("Failed to update query", error);
     }
@@ -2757,9 +2653,8 @@ export class DashboardPanel {
 
   private async handleDeleteQuery(id: string) {
     try {
-      await deleteQueryFromStorage(this.context, id);
+      await this.queryService.deleteQuery(id);
       this.postMessage("queryDeleted", { id });
-      logInfo(`Query deleted successfully.`);
     } catch (error) {
       logError("Failed to delete query", error);
     }
