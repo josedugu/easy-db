@@ -3,6 +3,7 @@ out
 .env
 .env.local
 *.vsix
+releases/
 .vscode-test
 .DS_Store
 svar-datagrid.txt
@@ -29,3 +30,11 @@ src/webview/credentials.json
 # IDE
 .vscode/**
 !.vscode/extensions.json
+
+# Tokens y notas temporales
+*.txt
+!LICENSE.txt
+!README.txt
+
+# Releases (opcional, si no quieres versionar los .vsix)
+releases/*.vsix

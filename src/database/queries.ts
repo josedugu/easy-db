@@ -1,4 +1,5 @@
 import { getConnection, runQuery } from "./connection";
+import { logInfo, logError } from "../utils/logger";
 
 export interface ColumnInfo {
   column_name: string;
@@ -12,6 +13,7 @@ export async function getTableColumns(
   tableName: string,
   schemaName: string
 ): Promise<ColumnInfo[]> {
+  logInfo(`[DB] Fetching columns for ${schemaName}.${tableName}`);
   const query = `
     SELECT 
       column_name,
@@ -32,9 +34,60 @@ export async function getTableRowCount(
   schemaName: string
 ): Promise<number> {
   const db = getConnection();
+  logInfo(`[DB] Counting rows for ${schemaName}.${tableName}`);
   const query = `SELECT COUNT(*) as count FROM "${schemaName}"."${tableName}"`;
   const result = await db.query<{ count: string }>(query);
   return Number(result.rows[0]?.count || 0);
+}
+
+export async function getViews(schemaName: string): Promise<string[]> {
+  logInfo(`[DB] Fetching views for schema ${schemaName}`);
+  const query = `
+    SELECT table_name
+    FROM information_schema.views
+    WHERE table_schema = $1
+    ORDER BY table_name
+  `;
+  const rows = await runQuery<{ table_name: string }>(query, [schemaName]);
+  return rows.map((row) => row.table_name);
+}
+
+export async function getMaterializedViews(
+  schemaName: string
+): Promise<string[]> {
+  logInfo(`[DB] Fetching materialized views for schema ${schemaName}`);
+  const query = `
+    SELECT matviewname
+    FROM pg_matviews
+    WHERE schemaname = $1
+    ORDER BY matviewname
+  `;
+  const rows = await runQuery<{ matviewname: string }>(query, [schemaName]);
+  return rows.map((row) => row.matviewname);
+}
+
+export async function getFunctions(schemaName: string): Promise<string[]> {
+  logInfo(`[DB] Fetching functions for schema ${schemaName}`);
+  const query = `
+    SELECT routine_name
+    FROM information_schema.routines
+    WHERE specific_schema = $1
+    ORDER BY routine_name
+  `;
+  const rows = await runQuery<{ routine_name: string }>(query, [schemaName]);
+  return rows.map((row) => row.routine_name);
+}
+
+export async function getSequences(schemaName: string): Promise<string[]> {
+  logInfo(`[DB] Fetching sequences for schema ${schemaName}`);
+  const query = `
+    SELECT sequence_name
+    FROM information_schema.sequences
+    WHERE sequence_schema = $1
+    ORDER BY sequence_name
+  `;
+  const rows = await runQuery<{ sequence_name: string }>(query, [schemaName]);
+  return rows.map((row) => row.sequence_name);
 }
 
 export interface PaginationOptions {
@@ -176,21 +229,48 @@ export async function executeCustomQuery(queryString: string): Promise<{
   rowCount: number;
   command: string;
 }> {
-  const db = getConnection();
-
+  logInfo(`[DB] Executing custom query: ${queryString}`);
   try {
-    const result = await db.query(queryString);
-
-    // Determine query type
+    // Determine query type from the first keyword
     const command =
       queryString.trim().split(/\s+/)[0]?.toUpperCase() || "UNKNOWN";
+    
+    // Use runQuery for consistency with getAllData
+    const rows = await runQuery(queryString);
+    
+    logInfo(`[DB] Query executed successfully, returned ${rows.length} rows`);
+    
+    // For SELECT queries, rows.length is the actual count
+    // For other queries, we need to get rowCount differently
+    let actualRowCount: number;
+    
+    if (command === "SELECT") {
+      actualRowCount = rows.length;
+    } else {
+      // For INSERT/UPDATE/DELETE, we need the affected row count
+      // Since runQuery doesn't return this, we'll use the rows length
+      // (which might be 0 for UPDATE/DELETE without RETURNING)
+      const db = getConnection();
+      const result = await db.query(queryString);
+      actualRowCount = result.rowCount ?? 0;
+      return {
+        rows: result.rows,
+        rowCount: actualRowCount,
+        command,
+      };
+    }
+
+    console.log(
+      `[Query] Returned ${actualRowCount} rows, command=${command}`
+    );
 
     return {
-      rows: result.rows,
-      rowCount: result.rowCount ?? 0,
+      rows,
+      rowCount: actualRowCount,
       command,
     };
   } catch (error: any) {
+    logError("Query execution failed", error);
     throw new Error("Query execution failed");
   }
 }

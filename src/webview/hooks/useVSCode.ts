@@ -8,7 +8,6 @@ let vscode: VSCodeAPI | null = null;
 const createMockVSCodeAPI = (): VSCodeAPI => {
   // Simulated message handler for browser mode
   const handleMessage = (message: Message) => {
-
     switch (message.type) {
       case "ready":
         // Send back saved connections from localStorage
@@ -95,28 +94,29 @@ const createMockVSCodeAPI = (): VSCodeAPI => {
   return {
     postMessage: handleMessage,
     getState: () => {
-       return null;
-     },
-     setState: (state: any) => {},
+      return null;
+    },
+    setState: (state: any) => {},
   };
 };
 
 export function getVSCode(): VSCodeAPI {
   if (!vscode) {
-     // Check if we're running in VS Code
-     if (typeof window !== "undefined" && (window as any).vscode) {
-       vscode = (window as any).vscode;
-     } else if (
-       typeof window !== "undefined" &&
-       (window as any).acquireVsCodeApi
-     ) {
-       vscode = (window as any).acquireVsCodeApi();
-     } else {
-       // Use mock API for browser development
-       vscode = createMockVSCodeAPI();
-     }
+    // Check if we're running in VS Code
+    if (typeof window !== "undefined" && (window as any).vscode) {
+      vscode = (window as any).vscode;
+    } else if (
+      typeof window !== "undefined" &&
+      (window as any).acquireVsCodeApi
+    ) {
+      vscode = (window as any).acquireVsCodeApi();
+    } else {
+      // Use mock API for browser development
+      vscode = createMockVSCodeAPI();
+    }
   }
-  return vscode;
+  // TypeScript assertion: vscode is guaranteed to be set at this point
+  return vscode as VSCodeAPI;
 }
 
 export function useVSCode() {

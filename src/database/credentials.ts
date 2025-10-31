@@ -4,25 +4,14 @@ import { DatabaseConfig } from "./connection";
 const CREDENTIALS_KEY = "postgresql.credentials";
 const CONNECTIONS_KEY = "postgresql.connections";
 
-export interface SavedConnection {
-  id: string;
-  name: string;
-  config: DatabaseConfig;
-  createdAt: string;
-  lastUsed?: string;
-}
-
 // Legacy function - keep for backwards compatibility
 export async function getStoredCredentials(
   context: vscode.ExtensionContext
 ): Promise<DatabaseConfig | null> {
-  const storedData = await context.secrets.get(CREDENTIALS_KEY);
-  if (!storedData) {
-    return null;
-  }
-
+  const raw = await context.secrets.get(CREDENTIALS_KEY);
+  if (!raw) return null;
   try {
-    return JSON.parse(storedData) as DatabaseConfig;
+    return JSON.parse(raw) as DatabaseConfig;
   } catch {
     return null;
   }
@@ -40,8 +29,21 @@ export async function saveCredentials(
 export async function clearCredentials(
   context: vscode.ExtensionContext
 ): Promise<void> {
-  await context.secrets.delete(CREDENTIALS_KEY);
+  if (typeof (context.secrets as any).delete === "function") {
+    await (context.secrets as any).delete(CREDENTIALS_KEY);
+  } else {
+    await context.secrets.store(CREDENTIALS_KEY, "");
+  }
 }
+
+export interface SavedConnection {
+  id: string;
+  name: string;
+  config: DatabaseConfig;
+  createdAt: string;
+  lastUsed?: string;
+}
+
 
 // New multi-connection functions
 export async function getAllConnections(

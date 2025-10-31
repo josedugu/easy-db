@@ -2,7 +2,11 @@ import React, { useState, useEffect } from "react";
 import { useVSCode, useMessageListener } from "./hooks/useVSCode";
 import ConnectionPage from "./components/ConnectionPage";
 import DataPage from "./components/DataPage";
-import type { AppState, SavedConnection } from "./types";
+import type { AppState, SavedConnection, SchemaResources } from "./types";
+import {
+  connectionNodeId,
+  categoryNodeId,
+} from "./utils/explorerIds";
 
 type Tab = "connection" | "data";
 
@@ -34,6 +38,11 @@ function App() {
     isNewConnection: false,
     sorting: [],
     searchFilter: "",
+    schemaResources: {},
+    schemaLoading: {},
+    explorerExpandedNodes: [],
+    explorerLoadingNodes: [],
+    explorerSelectedNodeId: null,
   });
 
   // Handle messages from VS Code
@@ -57,6 +66,13 @@ function App() {
           lastError: null,
           errorDetail: null,
           connectedConnectionId: prev.activeConnectionId,
+          schemaResources: {},
+          schemaLoading: {},
+          explorerExpandedNodes: prev.activeConnectionId
+            ? [connectionNodeId(prev.activeConnectionId)]
+            : [],
+          explorerLoadingNodes: [],
+          explorerSelectedNodeId: null,
         }));
         break;
 
@@ -90,6 +106,11 @@ function App() {
           tableData: [],
           activeSchema: null,
           activeTable: null,
+          schemaResources: {},
+          schemaLoading: {},
+          explorerExpandedNodes: [],
+          explorerLoadingNodes: [],
+          explorerSelectedNodeId: null,
         }));
         break;
 
@@ -97,6 +118,14 @@ function App() {
         setState((prev) => ({
           ...prev,
           schemas: message.payload.schemas.map((s: any) => s.schema_name || s),
+          schemaResources: message.payload.schemas.reduce(
+            (acc: Record<string, SchemaResources>, schema: any) => {
+              const schemaName = schema.schema_name || schema;
+              acc[schemaName] = prev.schemaResources[schemaName] || {};
+              return acc;
+            },
+            { ...prev.schemaResources }
+          ),
         }));
         break;
 
@@ -104,6 +133,155 @@ function App() {
         setState((prev) => ({
           ...prev,
           tables: message.payload.tables.map((t: any) => t.table_name || t),
+          schemaResources: {
+            ...prev.schemaResources,
+            [message.payload.schema]: {
+              ...(prev.schemaResources[message.payload.schema] || {}),
+              tables: message.payload.tables.map((t: any) => t.table_name || t),
+            },
+          },
+          schemaLoading: {
+            ...prev.schemaLoading,
+            [message.payload.schema]: {
+              ...(prev.schemaLoading[message.payload.schema] || {}),
+              tables: false,
+            },
+          },
+          explorerLoadingNodes: prev.connectedConnectionId
+            ? prev.explorerLoadingNodes.filter(
+                (id) =>
+                  id !==
+                  categoryNodeId(
+                    prev.connectedConnectionId!,
+                    message.payload.schema,
+                    "tables"
+                  )
+              )
+            : prev.explorerLoadingNodes,
+        }));
+        break;
+
+      case "views":
+        setState((prev) => ({
+          ...prev,
+          schemaResources: {
+            ...prev.schemaResources,
+            [message.payload.schema]: {
+              ...(prev.schemaResources[message.payload.schema] || {}),
+              views: message.payload.views,
+            },
+          },
+          schemaLoading: {
+            ...prev.schemaLoading,
+            [message.payload.schema]: {
+              ...(prev.schemaLoading[message.payload.schema] || {}),
+              views: false,
+            },
+          },
+          explorerLoadingNodes: prev.connectedConnectionId
+            ? prev.explorerLoadingNodes.filter(
+                (id) =>
+                  id !==
+                  categoryNodeId(
+                    prev.connectedConnectionId!,
+                    message.payload.schema,
+                    "views"
+                  )
+              )
+            : prev.explorerLoadingNodes,
+        }));
+        break;
+
+      case "materializedViews":
+        setState((prev) => ({
+          ...prev,
+          schemaResources: {
+            ...prev.schemaResources,
+            [message.payload.schema]: {
+              ...(prev.schemaResources[message.payload.schema] || {}),
+              materializedViews: message.payload.views,
+            },
+          },
+          schemaLoading: {
+            ...prev.schemaLoading,
+            [message.payload.schema]: {
+              ...(prev.schemaLoading[message.payload.schema] || {}),
+              materializedViews: false,
+            },
+          },
+          explorerLoadingNodes: prev.connectedConnectionId
+            ? prev.explorerLoadingNodes.filter(
+                (id) =>
+                  id !==
+                  categoryNodeId(
+                    prev.connectedConnectionId!,
+                    message.payload.schema,
+                    "materializedViews"
+                  )
+              )
+            : prev.explorerLoadingNodes,
+        }));
+        break;
+
+      case "functions":
+        setState((prev) => ({
+          ...prev,
+          schemaResources: {
+            ...prev.schemaResources,
+            [message.payload.schema]: {
+              ...(prev.schemaResources[message.payload.schema] || {}),
+              functions: message.payload.functions,
+            },
+          },
+          schemaLoading: {
+            ...prev.schemaLoading,
+            [message.payload.schema]: {
+              ...(prev.schemaLoading[message.payload.schema] || {}),
+              functions: false,
+            },
+          },
+          explorerLoadingNodes: prev.connectedConnectionId
+            ? prev.explorerLoadingNodes.filter(
+                (id) =>
+                  id !==
+                  categoryNodeId(
+                    prev.connectedConnectionId!,
+                    message.payload.schema,
+                    "functions"
+                  )
+              )
+            : prev.explorerLoadingNodes,
+        }));
+        break;
+
+      case "sequences":
+        setState((prev) => ({
+          ...prev,
+          schemaResources: {
+            ...prev.schemaResources,
+            [message.payload.schema]: {
+              ...(prev.schemaResources[message.payload.schema] || {}),
+              sequences: message.payload.sequences,
+            },
+          },
+          schemaLoading: {
+            ...prev.schemaLoading,
+            [message.payload.schema]: {
+              ...(prev.schemaLoading[message.payload.schema] || {}),
+              sequences: false,
+            },
+          },
+          explorerLoadingNodes: prev.connectedConnectionId
+            ? prev.explorerLoadingNodes.filter(
+                (id) =>
+                  id !==
+                  categoryNodeId(
+                    prev.connectedConnectionId!,
+                    message.payload.schema,
+                    "sequences"
+                  )
+              )
+            : prev.explorerLoadingNodes,
         }));
         break;
 
@@ -150,6 +328,9 @@ function App() {
           setState((prev) => ({
             ...prev,
             activeConnectionId: message.payload.activeConnectionId,
+            explorerExpandedNodes: [
+              connectionNodeId(message.payload.activeConnectionId),
+            ],
           }));
         }
         break;
@@ -249,4 +430,3 @@ function App() {
 }
 
 export default App;
-

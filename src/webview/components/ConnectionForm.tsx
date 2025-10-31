@@ -8,10 +8,10 @@ interface ConnectionFormProps {
 }
 
 const DEFAULT_CONFIG: DatabaseConfig = {
-  hostname: "aws-0-us-east-2.pooler.supabase.com",
-  port: 6543,
+  hostname: "localhost",
+  port: 5432,
   database: "postgres",
-  username: "postgres.bihnpyrwdlkmlkhvfjky",
+  username: "postgres",
   password: "",
 };
 
@@ -42,7 +42,7 @@ function ConnectionForm({ state, onConnect, onDisconnect }: ConnectionFormProps)
     } else if (state.isNewConnection) {
       // Reset form for new connection
       setConnectionName("");
-      setHostname(DEFAULT_CONFIG.host);
+      setHostname(DEFAULT_CONFIG.hostname);
       setPort(DEFAULT_CONFIG.port.toString());
       setDatabase(DEFAULT_CONFIG.database);
       setUsername(DEFAULT_CONFIG.username);
@@ -170,24 +170,28 @@ function ConnectionForm({ state, onConnect, onDisconnect }: ConnectionFormProps)
           />
         </label>
 
-        <div className="row two">
-          <label className="hide-password">
+        <div className="row two checkbox-row">
+          <div className="checkbox-field hide-password">
             <input
+              id="hide-password-toggle"
               type="checkbox"
               checked={hidePassword}
               onChange={(e) => setHidePassword(e.target.checked)}
             />
-            Hide password
-          </label>
+            <label htmlFor="hide-password-toggle">Hide password</label>
+          </div>
 
-          <label className="remember">
+          <div className="checkbox-field remember">
             <input
+              id="remember-connection-toggle"
               type="checkbox"
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
             />
-            Save this connection
-          </label>
+            <label htmlFor="remember-connection-toggle">
+              Save this connection
+            </label>
+          </div>
         </div>
 
         <div className="button-group">
@@ -220,4 +224,3 @@ function ConnectionForm({ state, onConnect, onDisconnect }: ConnectionFormProps)
 }
 
 export default ConnectionForm;
-

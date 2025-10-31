@@ -148,9 +148,43 @@ git push origin v0.2.0
 
 Open VSX es un registro alternativo (útil para Cursor):
 
+### Paso 1: Obtener Token de Open VSX
+
+1. Ve a: https://open-vsx.org
+2. Inicia sesión con GitHub
+3. Ve a tu perfil → Settings → Access Tokens
+4. Crea un nuevo token y cópialo
+
+### Paso 2: Configurar el Token
+
 ```bash
-# Publica en Open VSX
-npx ovsx publish -p <YOUR_OPEN_VSX_TOKEN>
+# Opción A: Variable de entorno (recomendado)
+export OPEN_VSX_TOKEN=tu_token_aqui
+
+# Opción B: Pasarlo como argumento al script
+./scripts/publish-openvsx.sh -p tu_token_aqui
+```
+
+### Paso 3: Publicar
+
+```bash
+# Actualiza la versión primero (si es necesario)
+npm run version:patch  # 0.1.2 → 0.1.3
+# o
+npm run version:minor  # 0.1.2 → 0.2.0
+# o
+npm run version:major  # 0.1.2 → 1.0.0
+
+# Compila, empaqueta y publica
+npm run publish:vsx
+```
+
+O manualmente:
+```bash
+npm run build:all
+npm run package:release
+export OPEN_VSX_TOKEN=tu_token
+./scripts/publish-openvsx.sh
 ```
 
 Regístrate en: https://open-vsx.org
