@@ -28,12 +28,15 @@ import {
   deleteConnection,
   updateLastUsed,
   SavedConnection,
+} from "../database/credentials";
+
+import {
   getAllQueries,
   saveQuery as saveQueryToStorage,
   updateQuery as updateQueryInStorage,
   deleteQuery as deleteQueryFromStorage,
   SavedQuery,
-} from "../database/credentials";
+} from "../database/savedQueries";
 import { logError, logInfo } from "../utils/logger";
 
 const DEFAULT_CONFIG: DatabaseConfig = {
