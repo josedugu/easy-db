@@ -2,7 +2,7 @@
   "name": "easydb",
   "displayName": "EasyDB - PostgreSQL Viewer",
   "description": "Visual database explorer for PostgreSQL with interactive credentials and table management",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "publisher": "josedugu",
   "private": true,
   "repository": {
