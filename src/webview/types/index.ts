@@ -20,6 +20,14 @@ export interface TableColumn {
   is_nullable: string;
 }
 
+export interface SchemaResources {
+  tables?: string[];
+  views?: string[];
+  materializedViews?: string[];
+  functions?: string[];
+  sequences?: string[];
+}
+
 export interface SortColumn {
   column: string;
   direction: "ASC" | "DESC";
@@ -34,6 +42,27 @@ export interface PendingEdit {
     column: string;
     value: any;
   };
+}
+
+export interface SavedQuery {
+  id: string;
+  name: string;
+  sql: string;
+  createdAt: string;
+  lastExecuted?: string;
+}
+
+export interface QueryTab {
+  id: string;
+  sql: string;
+  isDirty: boolean;
+}
+
+export interface QueryResult {
+  rows: any[];
+  rowCount: number;
+  executionTime: number;
+  command: string;
 }
 
 export interface AppState {
@@ -60,6 +89,17 @@ export interface AppState {
   isNewConnection: boolean;
   sorting: SortColumn[];
   searchFilter: string;
+  schemaResources: Record<string, SchemaResources>;
+  schemaLoading: Record<string, Partial<Record<keyof SchemaResources, boolean>>>;
+  explorerExpandedNodes: string[];
+  explorerLoadingNodes: string[];
+  explorerSelectedNodeId: string | null;
+  savedQueries: SavedQuery[];
+  queryTabs: QueryTab[];
+  activeTabId: string | null;
+  queryResults: QueryResult | null;
+  isExecutingQuery: boolean;
+  queryError: string | null;
 }
 
 export type MessageType =
@@ -69,10 +109,19 @@ export type MessageType =
   | "fetchSchemas"
   | "fetchTables"
   | "fetchTableData"
+  | "fetchSchemaViews"
+  | "fetchSchemaMaterializedViews"
+  | "fetchSchemaFunctions"
+  | "fetchSchemaSequences"
   | "saveConnection"
   | "updateConnection"
   | "deleteConnection"
-  | "updateCell";
+  | "updateCell"
+  | "executeQuery"
+  | "saveQuery"
+  | "updateQuery"
+  | "deleteQuery"
+  | "loadQueries";
 
 export interface Message<T = any> {
   type: MessageType;

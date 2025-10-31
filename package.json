@@ -2,25 +2,31 @@
   "name": "easydb",
   "displayName": "EasyDB - PostgreSQL Viewer",
   "description": "Visual database explorer for PostgreSQL with interactive credentials and table management",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "josedugu",
   "private": true,
   "repository": {
     "type": "git",
     "url": "https://github.com/josedugu/easy-db"
   },
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
+    "Data Science",
     "Other"
   ],
+  "keywords": [
+    "postgresql",
+    "postgres",
+    "sql",
+    "database",
+    "viewer",
+    "easydb"
+  ],
   "activationEvents": [
-    "onStartupFinished",
-    "onCommand:postgresql.openDashboard",
-    "onCommand:postgresql.configureConnection",
-    "onCommand:postgresql.clearCredentials",
-    "onCommand:postgresql.showLogs"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "type": "commonjs",
@@ -51,6 +57,23 @@
         "icon": "$(output)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "postgresqlExplorer",
+          "title": "EasyDB",
+          "icon": "resources/database.svg"
+        }
+      ]
+    },
+    "views": {
+      "postgresqlExplorer": [
+        {
+          "id": "postgresqlExplorerView",
+          "name": "Explorer"
+        }
+      ]
+    },
     "menus": {
       "commandPalette": [
         {
@@ -63,16 +86,27 @@
   },
   "scripts": {
     "compile": "tsc -p ./",
+    "build": "npm run compile && npm run webview:build",
     "watch": "tsc -watch -p ./",
     "package": "vsce package",
+    "package:release": "vsce package && mv *.vsix releases/",
+    "release": "npm run package:release && ./scripts/create-release.sh",
+    "release:draft": "npm run package:release && ./scripts/create-release.sh --draft",
+    "publish:vsx": "npm run build:all && npm run package:release && ./scripts/publish-openvsx.sh",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
     "webview:dev": "vite",
     "webview:build": "vite build",
     "build:all": "npm run compile && npm run webview:build"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.54.0",
     "pg": "^8.11.3",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "sql-formatter": "^15.6.10"
   },
   "devDependencies": {
     "@types/pg": "^8.11.6",

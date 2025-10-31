@@ -46,7 +46,7 @@ function ConnectionPage({ state, setState }: ConnectionPageProps) {
   const handleDeleteConnection = (id: string) => {
     postMessage({
       type: "deleteConnection",
-      connectionId: id,
+      payload: { id },
     });
   };
 
@@ -64,16 +64,20 @@ function ConnectionPage({ state, setState }: ConnectionPageProps) {
         // Update existing connection
         postMessage({
           type: "updateConnection",
-          connectionId: state.editingConnectionId,
-          name: name || "Unnamed Connection",
-          config,
+          payload: {
+            id: state.editingConnectionId,
+            name: name || "Unnamed Connection",
+            config,
+          },
         });
       } else if (state.isNewConnection || !state.activeConnectionId) {
         // Save new connection
         postMessage({
           type: "saveConnection",
-          name: name || "Unnamed Connection",
-          config,
+          payload: {
+            name: name || "Unnamed Connection",
+            config,
+          },
         });
       }
     }
@@ -81,9 +85,11 @@ function ConnectionPage({ state, setState }: ConnectionPageProps) {
     // Connect
     postMessage({
       type: "connect",
-      config,
-      remember,
-      activeConnectionId: state.activeConnectionId || undefined,
+      payload: {
+        config,
+        remember,
+        activeConnectionId: state.activeConnectionId || undefined,
+      },
     });
   };
 

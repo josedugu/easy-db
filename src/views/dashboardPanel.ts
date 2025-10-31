@@ -12,6 +12,11 @@ import {
   getAllData,
   getTableRowCount,
   SortColumn,
+  getViews,
+  getMaterializedViews,
+  getFunctions,
+  getSequences,
+  executeCustomQuery,
 } from "../database/queries";
 import {
   getStoredCredentials,
@@ -23,6 +28,11 @@ import {
   deleteConnection,
   updateLastUsed,
   SavedConnection,
+  getAllQueries,
+  saveQuery as saveQueryToStorage,
+  updateQuery as updateQueryInStorage,
+  deleteQuery as deleteQueryFromStorage,
+  SavedQuery,
 } from "../database/credentials";
 import { logError, logInfo } from "../utils/logger";
 
@@ -67,8 +77,16 @@ export class DashboardPanel {
   ) {
     this.panel = panel;
     this.panel.iconPath = {
-      light: vscode.Uri.joinPath(context.extensionUri, "resources", "database.svg"),
-      dark: vscode.Uri.joinPath(context.extensionUri, "resources", "database.svg"),
+      light: vscode.Uri.joinPath(
+        context.extensionUri,
+        "resources",
+        "database.svg"
+      ),
+      dark: vscode.Uri.joinPath(
+        context.extensionUri,
+        "resources",
+        "database.svg"
+      ),
     };
     this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 
@@ -148,22 +166,60 @@ export class DashboardPanel {
   private setWebviewMessageListener() {
     this.panel.webview.onDidReceiveMessage(
       async (message) => {
+        console.log(
+          "[BACKEND] Received message:",
+          JSON.stringify(message, null, 2)
+        );
         switch (message.type) {
           case "ready":
             await this.handleReady();
             break;
           case "connect":
             await this.handleConnect(
-              message.config as DatabaseConfig,
-              !!message.remember,
-              message.activeConnectionId
+              message.payload?.config as DatabaseConfig,
+              !!message.payload?.remember,
+              message.payload?.activeConnectionId
             );
             break;
           case "fetchSchemas":
             await this.sendSchemas();
             break;
           case "fetchTables":
-            await this.sendTables(String(message.schema || ""));
+            logInfo(`[BP] fetchTables received: ${message.payload?.schema}`);
+            await this.sendTables(
+              String(message.payload?.schema || ""),
+              message.payload?.connectionId
+            );
+            break;
+          case "fetchSchemaViews":
+            logInfo(`[BP] fetchViews received: ${message.payload?.schema}`);
+            await this.sendViews(
+              String(message.payload?.schema || ""),
+              message.payload?.connectionId
+            );
+            break;
+          case "fetchSchemaMaterializedViews":
+            logInfo(
+              `[BP] fetchMaterializedViews received: ${message.payload?.schema}`
+            );
+            await this.sendMaterializedViews(
+              String(message.payload?.schema || ""),
+              message.payload?.connectionId
+            );
+            break;
+          case "fetchSchemaFunctions":
+            logInfo(`[BP] fetchFunctions received: ${message.payload?.schema}`);
+            await this.sendFunctions(
+              String(message.payload?.schema || ""),
+              message.payload?.connectionId
+            );
+            break;
+          case "fetchSchemaSequences":
+            logInfo(`[BP] fetchSequences received: ${message.payload?.schema}`);
+            await this.sendSequences(
+              String(message.payload?.schema || ""),
+              message.payload?.connectionId
+            );
             break;
           case "fetchTableData":
             await this.sendTableData(message.payload as TableDataPayload);
@@ -187,17 +243,20 @@ export class DashboardPanel {
             await this.persistCredentials(!!message.remember);
             break;
           case "saveConnection":
-            await this.handleSaveConnection(message.name, message.config);
+            await this.handleSaveConnection(
+              message.payload?.name,
+              message.payload?.config
+            );
             break;
           case "updateConnection":
             await this.handleUpdateConnection(
-              message.connectionId,
-              message.name,
-              message.config
+              message.payload?.id,
+              message.payload?.name,
+              message.payload?.config
             );
             break;
           case "deleteConnection":
-            await this.handleDeleteConnection(message.connectionId);
+            await this.handleDeleteConnection(message.payload?.id);
             break;
           case "updateCell":
             await this.handleUpdateCell(
@@ -208,6 +267,21 @@ export class DashboardPanel {
               message.newValue,
               message.primaryKey
             );
+            break;
+          case "executeQuery":
+            await this.handleExecuteQuery(message.payload?.sql);
+            break;
+          case "loadQueries":
+            await this.handleLoadQueries();
+            break;
+          case "saveQuery":
+            await this.handleSaveQuery(message.payload?.query);
+            break;
+          case "updateQuery":
+            await this.handleUpdateQuery(message.payload?.query);
+            break;
+          case "deleteQuery":
+            await this.handleDeleteQuery(message.payload?.id);
             break;
           default:
             break;
@@ -221,6 +295,9 @@ export class DashboardPanel {
   private async handleReady() {
     // Load all saved connections
     const connections = await getAllConnections(this.context);
+
+    // Load all saved queries
+    await this.handleLoadQueries();
 
     // Try to auto-connect to the last used connection
     if (connections.length > 0) {
@@ -420,7 +497,6 @@ export class DashboardPanel {
         error?.message === "Connection cancelled" ||
         token.isCancellationRequested
       ) {
- 
         this.lastError = undefined;
         this.isConnected = false;
         this.postMessage("connectionCancelled", { config });
@@ -453,7 +529,6 @@ export class DashboardPanel {
       this.connectionCancellation.cancel();
       this.connectionCancellation.dispose();
       this.connectionCancellation = undefined;
-
     }
 
     // Always reset the connection pool to stop any pending queries
@@ -494,8 +569,6 @@ export class DashboardPanel {
 
       await db.query(query, [newValue, primaryKey.value]);
 
-
-
       this.postMessage("cellUpdated", {
         schema,
         table,
@@ -525,7 +598,7 @@ export class DashboardPanel {
 
   private async handleSaveConnection(name: string, config: DatabaseConfig) {
     try {
-       const connection = await saveConnection(this.context, name, config);
+      const connection = await saveConnection(this.context, name, config);
       this.postMessage("connectionSaved", { connection });
     } catch (error) {
       logError("Failed to save connection", error);
@@ -616,6 +689,7 @@ export class DashboardPanel {
 
     try {
       const schemas = await getSchemas();
+      logInfo(`Loaded ${schemas.length} schemas from PostgreSQL.`);
       this.postMessage("schemas", { schemas });
     } catch (error: any) {
       logError("Failed to load schemas.", error);
@@ -625,18 +699,133 @@ export class DashboardPanel {
     }
   }
 
-  private async sendTables(schema: string) {
+  private async sendTables(schema: string, connectionId?: string) {
     if (!this.isConnected || !schema) {
+      logInfo(
+        `Skipped loading tables for schema ${schema}: connected=${this.isConnected}`
+      );
       return;
     }
 
     try {
+      logInfo(
+        `Loading tables for schema ${schema} (connectionId=${
+          connectionId ?? "unknown"
+        })`
+      );
       const tables = await getTables(schema);
-      this.postMessage("tables", { schema, tables });
+      logInfo(`Loaded ${tables.length} tables from schema ${schema}.`);
+      this.postMessage("tables", { schema, tables, connectionId });
     } catch (error: any) {
       logError(`Failed to load tables for schema ${schema}`, error);
       this.postMessage("dataError", {
         message: error?.message ?? "Failed to load tables.",
+      });
+    }
+  }
+
+  private async sendViews(schema: string, connectionId?: string) {
+    if (!this.isConnected || !schema) {
+      logInfo(
+        `Skipped loading views for schema ${schema}: connected=${this.isConnected}`
+      );
+      return;
+    }
+
+    try {
+      logInfo(
+        `Loading views for schema ${schema} (connectionId=${
+          connectionId ?? "unknown"
+        })`
+      );
+      const views = await getViews(schema);
+      logInfo(`Loaded ${views.length} views from schema ${schema}.`);
+      this.postMessage("views", { schema, views, connectionId });
+    } catch (error: any) {
+      logError(`Failed to load views for schema ${schema}`, error);
+      this.postMessage("dataError", {
+        message: error?.message ?? "Failed to load views.",
+      });
+    }
+  }
+
+  private async sendMaterializedViews(schema: string, connectionId?: string) {
+    if (!this.isConnected || !schema) {
+      logInfo(
+        `Skipped loading materialized views for schema ${schema}: connected=${this.isConnected}`
+      );
+      return;
+    }
+
+    try {
+      logInfo(
+        `Loading materialized views for schema ${schema} (connectionId=${
+          connectionId ?? "unknown"
+        })`
+      );
+      const views = await getMaterializedViews(schema);
+      logInfo(
+        `Loaded ${views.length} materialized views from schema ${schema}.`
+      );
+      this.postMessage("materializedViews", {
+        schema,
+        views,
+        connectionId,
+      });
+    } catch (error: any) {
+      logError(`Failed to load materialized views for schema ${schema}`, error);
+      this.postMessage("dataError", {
+        message: error?.message ?? "Failed to load materialized views.",
+      });
+    }
+  }
+
+  private async sendFunctions(schema: string, connectionId?: string) {
+    if (!this.isConnected || !schema) {
+      logInfo(
+        `Skipped loading functions for schema ${schema}: connected=${this.isConnected}`
+      );
+      return;
+    }
+
+    try {
+      logInfo(
+        `Loading functions for schema ${schema} (connectionId=${
+          connectionId ?? "unknown"
+        })`
+      );
+      const functions = await getFunctions(schema);
+      logInfo(`Loaded ${functions.length} functions from schema ${schema}.`);
+      this.postMessage("functions", { schema, functions, connectionId });
+    } catch (error: any) {
+      logError(`Failed to load functions for schema ${schema}`, error);
+      this.postMessage("dataError", {
+        message: error?.message ?? "Failed to load functions.",
+      });
+    }
+  }
+
+  private async sendSequences(schema: string, connectionId?: string) {
+    if (!this.isConnected || !schema) {
+      logInfo(
+        `Skipped loading sequences for schema ${schema}: connected=${this.isConnected}`
+      );
+      return;
+    }
+
+    try {
+      logInfo(
+        `Loading sequences for schema ${schema} (connectionId=${
+          connectionId ?? "unknown"
+        })`
+      );
+      const sequences = await getSequences(schema);
+      logInfo(`Loaded ${sequences.length} sequences from schema ${schema}.`);
+      this.postMessage("sequences", { schema, sequences, connectionId });
+    } catch (error: any) {
+      logError(`Failed to load sequences for schema ${schema}`, error);
+      this.postMessage("dataError", {
+        message: error?.message ?? "Failed to load sequences.",
       });
     }
   }
@@ -2490,5 +2679,86 @@ export class DashboardPanel {
       text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
     return text;
+  }
+
+  private async handleExecuteQuery(sql: string) {
+    if (!this.isConnected || !sql) {
+      this.postMessage("queryError", {
+        message: "No active database connection or empty query.",
+      });
+      return;
+    }
+
+    const startTime = Date.now();
+    try {
+      logInfo(`[BP] Executing query: ${sql.substring(0, 50)}...`);
+      const result = await executeCustomQuery(sql);
+      const executionTime = Date.now() - startTime;
+
+      logInfo(
+        `[BP] Query executed: ${result.rowCount} rows in ${executionTime}ms`
+      );
+
+      this.postMessage("queryResult", {
+        rows: result.rows,
+        rowCount: result.rowCount,
+        executionTime,
+        command: result.command,
+      });
+    } catch (error: any) {
+      logError("Query execution failed", error);
+
+      // Extract detailed error message from PostgreSQL
+      const errorMessage = error?.message || "Query execution failed";
+      const errorDetail = error?.detail || "";
+      const errorHint = error?.hint || "";
+
+      let fullMessage = errorMessage;
+      if (errorDetail) fullMessage += `\n\nDetail: ${errorDetail}`;
+      if (errorHint) fullMessage += `\n\nHint: ${errorHint}`;
+
+      this.postMessage("queryError", {
+        message: fullMessage,
+      });
+    }
+  }
+
+  private async handleLoadQueries() {
+    try {
+      const queries = await getAllQueries(this.context);
+      this.postMessage("queriesLoaded", { queries });
+    } catch (error) {
+      logError("Failed to load queries", error);
+    }
+  }
+
+  private async handleSaveQuery(query: SavedQuery) {
+    try {
+      const savedQuery = await saveQueryToStorage(this.context, query);
+      this.postMessage("querySaved", { query: savedQuery });
+      logInfo(`Query "${query.name}" saved successfully.`);
+    } catch (error) {
+      logError("Failed to save query", error);
+    }
+  }
+
+  private async handleUpdateQuery(query: SavedQuery) {
+    try {
+      await updateQueryInStorage(this.context, query);
+      this.postMessage("queryUpdated", { query });
+      logInfo(`Query "${query.name}" updated successfully.`);
+    } catch (error) {
+      logError("Failed to update query", error);
+    }
+  }
+
+  private async handleDeleteQuery(id: string) {
+    try {
+      await deleteQueryFromStorage(this.context, id);
+      this.postMessage("queryDeleted", { id });
+      logInfo(`Query deleted successfully.`);
+    } catch (error) {
+      logError("Failed to delete query", error);
+    }
   }
 }

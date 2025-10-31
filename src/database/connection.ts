@@ -55,7 +55,8 @@ export function getConnection(): Pool {
 
 export async function testConnection(): Promise<void> {
   const db = getConnection();
-undefined
+  await db.query("SELECT 1");
+  logInfo("PostgreSQL connection test succeeded.");
 }
 
 export async function runQuery<T extends QueryResultRow = QueryResultRow>(

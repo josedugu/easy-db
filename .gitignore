@@ -3,6 +3,7 @@ out
 .env
 .env.local
 *.vsix
+releases/
 .vscode-test
 .DS_Store
 svar-datagrid.txt
